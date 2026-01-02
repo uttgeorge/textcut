@@ -15,11 +15,11 @@ TextCut 是一款基于 **"文稿即剪辑"** 理念的 AI 视频编辑工具。
 **后端**
 - Python 3.10+
 - FastAPI
-- PostgreSQL
+- SQLite（默认）/ PostgreSQL
 - Redis + Celery
 - WhisperX（语音转文字）
 - DeepSeek（AI 剪辑）
-- FFmpeg（视频处理）
+- FFmpeg + MoviePy（视频处理）
 
 **前端**
 - React 18 + TypeScript
@@ -34,24 +34,56 @@ TextCut 是一款基于 **"文稿即剪辑"** 理念的 AI 视频编辑工具。
 
 - Python 3.10+
 - Node.js 18+
-- PostgreSQL 14+
 - Redis 6+
 - FFmpeg
 
-### 1. 克隆项目
+### 方式一：一键启动（推荐）
 
 ```bash
-git clone <repository-url>
-cd TextCut
+# 克隆项目
+git clone https://github.com/uttgeorge/textcut.git
+cd textcut
+
+# 复制并编辑环境变量
+cp backend/.env.example backend/.env
+# 编辑 backend/.env，填入 DEEPSEEK_API_KEY 和 HF_TOKEN
+
+# 一键启动所有服务
+./start.sh
 ```
 
-### 2. 后端配置
+启动脚本会自动：
+1. 检查系统依赖（Python、Node.js、Redis、FFmpeg）
+2. 创建 Python 虚拟环境并安装依赖
+3. 安装前端 Node.js 依赖
+4. 初始化数据库
+5. 启动 Redis、后端 API、Celery Worker、前端开发服务器
+
+启动完成后访问：http://localhost:5173
+
+**其他命令：**
+```bash
+./start.sh stop     # 停止所有服务
+./start.sh status   # 查看服务状态
+./start.sh restart  # 重启所有服务
+```
+
+### 方式二：手动启动
+
+#### 1. 克隆项目
+
+```bash
+git clone https://github.com/uttgeorge/textcut.git
+cd textcut
+```
+
+#### 2. 后端配置
 
 ```bash
 cd backend
 
 # 创建虚拟环境
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 
 # 安装依赖
@@ -61,23 +93,17 @@ pip install -r requirements.txt
 cp .env.example .env
 
 # 编辑 .env 文件，填入你的配置
-# - DATABASE_URL: PostgreSQL 连接地址
-# - REDIS_URL: Redis 连接地址
-# - DEEPSEEK_API_KEY: DeepSeek API 密钥
-# - HF_TOKEN: HuggingFace Token（用于说话人分离模型）
-```
+# - DEEPSEEK_API_KEY: DeepSeek API 密钥（必填）
+# - HF_TOKEN: HuggingFace Token（说话人分离功能需要）
 
-### 3. 数据库初始化
+# 创建存储目录
+mkdir -p storage/videos storage/audio storage/renders
 
-```bash
-# 确保 PostgreSQL 已启动，并创建数据库
-createdb textcut
-
-# 初始化数据库表
+# 初始化数据库
 python init_db.py
 ```
 
-### 4. 前端配置
+#### 3. 前端配置
 
 ```bash
 cd ../frontend
@@ -86,11 +112,11 @@ cd ../frontend
 npm install
 ```
 
-### 5. 启动服务
+#### 4. 启动服务
 
 需要启动 4 个服务：
 
-**终端 1 - Redis**（如果未作为系统服务运行）
+**终端 1 - Redis**
 ```bash
 redis-server
 ```
@@ -99,14 +125,14 @@ redis-server
 ```bash
 cd backend
 source venv/bin/activate
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 **终端 3 - Celery Worker**（处理转录任务）
 ```bash
 cd backend
 source venv/bin/activate
-python start_celery.py worker -l info -P solo
+python start_celery.py
 ```
 
 **终端 4 - 前端**
@@ -115,7 +141,7 @@ cd frontend
 npm run dev
 ```
 
-### 6. 访问应用
+#### 5. 访问应用
 
 打开浏览器访问 http://localhost:5173
 
@@ -123,20 +149,17 @@ npm run dev
 
 ### 后端 (.env)
 
-| 变量 | 说明 | 示例 |
-|------|------|------|
-| `DATABASE_URL` | PostgreSQL 连接地址 | `postgresql+asyncpg://postgres:postgres@localhost:5432/textcut` |
-| `REDIS_URL` | Redis 连接地址 | `redis://localhost:6379/0` |
-| `USE_LOCAL_STORAGE` | 是否使用本地存储 | `true` |
-| `LOCAL_STORAGE_PATH` | 本地存储路径 | `./storage` |
-| `DEEPSEEK_API_KEY` | DeepSeek API 密钥 | `sk-xxx` |
-| `DEEPSEEK_BASE_URL` | DeepSeek API 地址 | `https://api.deepseek.com` |
-| `DEEPSEEK_MODEL` | 使用的模型 | `deepseek-chat` |
-| `WHISPERX_MODEL` | WhisperX 模型 | `large-v2` |
-| `WHISPERX_DEVICE` | 运行设备 | `cpu` 或 `cuda` |
-| `HF_TOKEN` | HuggingFace Token | `hf_xxx` |
-| `CELERY_BROKER_URL` | Celery Broker | `redis://localhost:6379/1` |
-| `CELERY_RESULT_BACKEND` | Celery Backend | `redis://localhost:6379/2` |
+| 变量 | 说明 | 必填 | 默认值 |
+|------|------|------|------|
+| `DEEPSEEK_API_KEY` | DeepSeek API 密钥 | ✅ | - |
+| `DEEPSEEK_BASE_URL` | DeepSeek API 地址 | ❌ | `https://api.deepseek.com` |
+| `DEEPSEEK_MODEL` | 使用的模型 | ❌ | `deepseek-chat` |
+| `HF_TOKEN` | HuggingFace Token（说话人分离） | ❌ | - |
+| `WHISPERX_MODEL` | WhisperX 模型 | ❌ | `large-v2` |
+| `WHISPERX_DEVICE` | 运行设备 | ❌ | `cpu`（可选 `cuda`） |
+| `REDIS_URL` | Redis 连接地址 | ❌ | `redis://localhost:6379/0` |
+| `CELERY_BROKER_URL` | Celery Broker | ❌ | `redis://localhost:6379/1` |
+| `CELERY_RESULT_BACKEND` | Celery Backend | ❌ | `redis://localhost:6379/2` |
 
 ## 项目结构
 

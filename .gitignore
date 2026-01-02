@@ -50,6 +50,9 @@ frontend/build/
 # Storage (uploaded files, renders, etc.)
 backend/storage/
 
+# PID files
+.pids/
+
 # Logs
 *.log
 logs/
