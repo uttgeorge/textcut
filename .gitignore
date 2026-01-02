@@ -49,6 +49,8 @@ frontend/build/
 
 # Storage (uploaded files, renders, etc.)
 backend/storage/
+backend/app/storage/
+storage/
 
 # PID files
 .pids/
