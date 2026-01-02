@@ -5,7 +5,7 @@ from ulid import ULID
 import os
 
 from app.database import get_db
-from app.models import Project
+from app.models import Project, Transcript, EDL, Export, CeleryTask
 from app.schemas import (
     APIResponse, ProjectCreate, ProjectUpdate, ProjectResponse,
     ProjectListResponse, StatusResponse, ProcessingStep, ProjectStatus
@@ -119,9 +119,19 @@ async def delete_project(
             "message": "项目不存在"
         })
     
-    # Delete storage files
-    if project.video_key:
-        await storage_service.delete(project.video_key)
+    # Delete related records first (manual cascade)
+    from sqlalchemy import delete
+    await db.execute(delete(CeleryTask).where(CeleryTask.project_id == project_id))
+    await db.execute(delete(Export).where(Export.project_id == project_id))
+    await db.execute(delete(EDL).where(EDL.project_id == project_id))
+    await db.execute(delete(Transcript).where(Transcript.project_id == project_id))
+    
+    # Delete storage directory (videos, audio, etc.)
+    try:
+        await storage_service.delete_directory(f"videos/{project_id}")
+        await storage_service.delete_directory(f"audio/{project_id}")
+    except Exception:
+        pass  # Ignore storage deletion errors
     
     await db.delete(project)
     await db.commit()

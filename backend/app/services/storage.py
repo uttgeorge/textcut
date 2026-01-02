@@ -40,6 +40,15 @@ class LocalStorageService:
             return True
         return False
     
+    async def delete_directory(self, dir_key: str) -> bool:
+        """删除整个目录"""
+        import shutil
+        dir_path = self.base_path / dir_key
+        if dir_path.exists() and dir_path.is_dir():
+            shutil.rmtree(dir_path)
+            return True
+        return False
+    
     async def get_url(self, key: str, expires_in: int = 3600) -> str:
         """获取文件 URL"""
         return f"/storage/{key}"
