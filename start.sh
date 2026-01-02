@@ -155,10 +155,12 @@ start_backend() {
     cd "$BACKEND_DIR"
     source venv/bin/activate
     
-    if check_port 8000; then
-        log_warn "端口 8000 已被占用，尝试停止旧进程..."
-        lsof -i :8000 | grep LISTEN | awk '{print $2}' | xargs kill -9 2>/dev/null || true
-        sleep 1
+    # 彻底清理端口 8000
+    local pids=$(lsof -ti :8000 2>/dev/null)
+    if [ -n "$pids" ]; then
+        log_warn "端口 8000 被占用，正在清理..."
+        echo "$pids" | xargs kill -9 2>/dev/null || true
+        sleep 2
     fi
     
     log_info "启动后端 API 服务..."
@@ -173,10 +175,15 @@ start_celery() {
     source venv/bin/activate
     
     log_info "启动 Celery Worker..."
-    nohup python start_celery.py > "$PID_DIR/celery.log" 2>&1 &
+    nohup python start_celery.py -A app.tasks worker --loglevel=info -P solo > "$PID_DIR/celery.log" 2>&1 &
     echo $! > "$PID_DIR/celery.pid"
-    sleep 2
-    log_success "Celery Worker 已启动"
+    sleep 3
+    
+    if pgrep -f "celery.*worker" > /dev/null; then
+        log_success "Celery Worker 已启动"
+    else
+        log_warn "Celery Worker 可能启动失败，请检查日志: $PID_DIR/celery.log"
+    fi
 }
 
 # 启动前端
